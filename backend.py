@@ -357,13 +357,40 @@ def flight_agent(state: TravelState):
 # Hotel Agent - original behavior kept
 # =========================
 def hotel_agent(state: TravelState):
-    query = f"Best hotels for {state['user_query']}"
-    hotel_results = asyncio.run(tavily_mcp_search(query))
+    query = (
+        f"Best hotels for "
+        f"{state['user_query']}"
+    )
+
+    try:
+        hotel_results = asyncio.run(
+            tavily_mcp_search(query)
+        )
+
+    except Exception as exc:
+        print(
+            f"HOTEL AGENT MCP ERROR: "
+            f"{type(exc).__name__}: {exc}",
+            flush=True,
+        )
+
+        hotel_results = (
+            "Live hotel search is temporarily unavailable. "
+            "Provide general accommodation and neighborhood "
+            "guidance based on the destination and clearly "
+            "label it as non-live advice."
+        )
 
     return {
         "hotel_results": hotel_results,
-        "messages": [AIMessage(content="Hotel information fetched.")],
-        "llm_calls": state.get("llm_calls", 0) + 1,
+        "messages": [
+            AIMessage(
+                content="Hotel information processed."
+            )
+        ],
+        "llm_calls": (
+            state.get("llm_calls", 0) + 1
+        ),
     }
 
 
@@ -371,19 +398,48 @@ def hotel_agent(state: TravelState):
 # Weather Agent - original behavior kept
 # =========================
 def weather_agent(state: TravelState):
-    city = extract_destination(state["user_query"])
-    weather_data = asyncio.run(weather_mcp_search(city))
-    forecast_data = asyncio.run(forecast_mcp_search(city))
+    city = extract_destination(
+        state["user_query"]
+    )
 
-    return {
-        "weather_results": f"""
+    try:
+        weather_data = asyncio.run(
+            weather_mcp_search(city)
+        )
+
+        forecast_data = asyncio.run(
+            forecast_mcp_search(city)
+        )
+
+        weather_results = f"""
 Current Weather:
 {weather_data}
 
 Forecast:
 {forecast_data}
-""",
-        "messages": [AIMessage(content="Weather information fetched")],
+"""
+
+    except Exception as exc:
+        print(
+            f"WEATHER AGENT MCP ERROR: "
+            f"{type(exc).__name__}: {exc}",
+            flush=True,
+        )
+
+        weather_results = (
+            f"Live weather information for {city} "
+            "is temporarily unavailable. Give general "
+            "seasonal guidance and advise the traveler "
+            "to verify the forecast before departure."
+        )
+
+    return {
+        "weather_results": weather_results,
+        "messages": [
+            AIMessage(
+                content="Weather information processed."
+            )
+        ],
     }
 
 
