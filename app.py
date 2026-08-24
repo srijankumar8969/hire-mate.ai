@@ -8,10 +8,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
-from backend import run_travel_agent, resume_travel_agent
+from backend import run_career_agent, resume_career_agent
 
-# This is kept from the original project to allow the existing synchronous
-# agent functions to call async MCP helpers inside FastAPI.
+# Kept from the original project to allow the synchronous agent functions to
+# call async MCP helpers inside FastAPI.
 import nest_asyncio
 
 nest_asyncio.apply()
@@ -19,10 +19,12 @@ nest_asyncio.apply()
 BASE_DIR = Path(__file__).resolve().parent
 
 app = FastAPI(
-    title="TripMate AI",
+    title="HireMate AI",
     description=(
-        "LangGraph Multi-Agent Travel Planner with Supervisor, Guardrails, "
-        "Human-in-the-Loop, and FastAPI Frontend"
+        "LangGraph Multi-Agent Career/Job Application Assistant with "
+        "job-search, resume-matcher, cover-letter, and formatter agents, "
+        "a Supervisor, input Guardrails, Human-in-the-Loop review, and a "
+        "FastAPI frontend."
     ),
     version="2.0.0",
 )
@@ -32,12 +34,13 @@ app.mount(
     StaticFiles(directory=str(BASE_DIR / "static")),
     name="static",
 )
-
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 
-class TravelRequest(BaseModel):
+class ApplicationRequest(BaseModel):
     message: str
+    resume_text: str = ""
+    job_description: str = ""
     thread_id: str | None = None
 
 
@@ -56,11 +59,10 @@ async def home(request: Request):
     )
 
 
-@app.post("/api/travel")
-async def travel_planner(request_data: TravelRequest):
+@app.post("/api/apply")
+async def apply(request_data: ApplicationRequest):
     try:
         user_message = request_data.message.strip()
-
         if not user_message:
             return JSONResponse(
                 status_code=400,
@@ -70,22 +72,21 @@ async def travel_planner(request_data: TravelRequest):
                 },
             )
 
-        result = run_travel_agent(
+        result = run_career_agent(
             user_input=user_message,
+            resume_text=request_data.resume_text,
+            job_description=request_data.job_description,
             thread_id=request_data.thread_id,
         )
-
         return JSONResponse(
             content={
                 "success": True,
                 **result,
             }
         )
-
     except Exception as exc:
         print("ERROR:", exc)
         traceback.print_exc()
-
         return JSONResponse(
             status_code=500,
             content={
@@ -95,8 +96,8 @@ async def travel_planner(request_data: TravelRequest):
         )
 
 
-@app.post("/api/travel/approve")
-async def approve_travel_plan(request_data: ApprovalRequest):
+@app.post("/api/apply/approve")
+async def approve_application(request_data: ApprovalRequest):
     try:
         if not request_data.approved and not request_data.feedback.strip():
             return JSONResponse(
@@ -107,23 +108,20 @@ async def approve_travel_plan(request_data: ApprovalRequest):
                 },
             )
 
-        result = resume_travel_agent(
+        result = resume_career_agent(
             thread_id=request_data.thread_id,
             approved=request_data.approved,
             feedback=request_data.feedback,
         )
-
         return JSONResponse(
             content={
                 "success": True,
                 **result,
             }
         )
-
     except Exception as exc:
         print("APPROVAL ERROR:", exc)
         traceback.print_exc()
-
         return JSONResponse(
             status_code=500,
             content={
@@ -137,10 +135,14 @@ async def approve_travel_plan(request_data: ApprovalRequest):
 async def health_check():
     return {
         "status": "ok",
-        "message": "TripMate AI API is running",
+        "message": "HireMate AI API is running",
         "features": [
             "supervisor_agent",
             "input_guardrail",
+            "job_search_agent",
+            "resume_matcher_agent",
+            "cover_letter_agent",
+            "formatter_agent",
             "human_in_the_loop",
         ],
     }
